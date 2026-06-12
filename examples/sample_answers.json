@@ -1,0 +1,9 @@
+{
+  "age": 36,
+  "drawdown_tolerance": "medium",
+  "emergency_months": 3,
+  "horizon_years": 8,
+  "income_stability": "stable",
+  "liquidity_needs": "high",
+  "notes": "Fictional demo answers for a balanced profile."
+}

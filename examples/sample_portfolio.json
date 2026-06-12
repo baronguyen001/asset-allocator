@@ -1,0 +1,84 @@
+{
+  "holdings": [
+    {
+      "bucket": "equity",
+      "cost_basis": 39000.0,
+      "kind": "market",
+      "label": "Fictional Global Equity Fund",
+      "quantity": 300.0,
+      "ticker": "demo-equity.us"
+    },
+    {
+      "apy": 4.0,
+      "bucket": "bonds",
+      "cost_basis": 25000.0,
+      "kind": "accrual",
+      "label": "Fictional Bond Ladder",
+      "opened": "2026-06-12"
+    },
+    {
+      "bucket": "gold",
+      "cost_basis": 10000.0,
+      "kind": "market",
+      "label": "Fictional Gold Sleeve",
+      "quantity": 4.0,
+      "ticker": "demo-gold"
+    },
+    {
+      "bucket": "real_estate",
+      "cost_basis": 10000.0,
+      "kind": "static",
+      "label": "Fictional Property Share",
+      "valuation_override": 10100.0
+    },
+    {
+      "apy": 3.0,
+      "bucket": "savings",
+      "cost_basis": 8000.0,
+      "kind": "accrual",
+      "label": "Fictional Yield Pocket",
+      "opened": "2026-06-12"
+    },
+    {
+      "bucket": "cash",
+      "cost_basis": 4000.0,
+      "kind": "static",
+      "label": "Fictional Cash Bucket"
+    },
+    {
+      "bucket": "emergency",
+      "cost_basis": 3000.0,
+      "kind": "static",
+      "label": "Fictional Emergency Reserve"
+    }
+  ],
+  "price_cache": {
+    "demo-equity.us": {
+      "as_of_epoch": 1781222400,
+      "price": 135.0
+    },
+    "demo-gold": {
+      "as_of_epoch": 1781222400,
+      "price": 2550.0
+    }
+  },
+  "profile": {
+    "age": 36,
+    "horizon_years": 8,
+    "name": "balanced",
+    "notes": "Fictional demo profile.",
+    "score": 54
+  },
+  "target": {
+    "profile_name": "balanced",
+    "weights": {
+      "bonds": 25.0,
+      "cash": 4.0,
+      "emergency": 3.0,
+      "equity": 40.0,
+      "gold": 10.0,
+      "real_estate": 10.0,
+      "savings": 8.0
+    }
+  }
+}
