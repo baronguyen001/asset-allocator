@@ -94,3 +94,12 @@ class PeriodReturn:
     last_change: float
     last_change_pct: float
     snapshots: int
+
+
+@dataclass
+class ProjectionRow:
+    year: int
+    contributed: float
+    nominal: float
+    real: float
+    growth: float

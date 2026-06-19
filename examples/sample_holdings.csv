@@ -1,0 +1,8 @@
+bucket,label,kind,cost_basis,quantity,ticker,apy,opened,valuation_override
+equity,Fictional Global Equity Fund,market,39000,300,demo-equity.us,,,
+bonds,Fictional Bond Ladder,accrual,25000,,,4,2026-06-12,
+gold,Fictional Gold Sleeve,market,10000,4,demo-gold,,,
+real_estate,Fictional Property Share,static,10000,,,,,10100
+savings,Fictional Yield Pocket,accrual,8000,,,3,2026-06-12,
+cash,Fictional Cash Bucket,static,4000,,,,,
+emergency,Fictional Emergency Reserve,static,3000,,,,,

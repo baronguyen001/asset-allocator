@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 - 2026-06-19
+
+- Added `allocate import --csv FILE [--replace]`: load holdings in bulk from a CSV (the
+  inverse of `allocate export`), with per-row validation and a clear error per bad row.
+- Added `allocate set-target`: define a custom target allocation with `--weight bucket=NN`
+  (repeatable) or `--from-file weights.json`, re-normalized to 100% — no longer limited to
+  the four built-in risk models.
+- Added `allocate project --years N [--monthly M] [--annual-return R] [--inflation I]`: an
+  illustrative compound-growth projection (nominal, inflation-adjusted real, and growth)
+  for contribution planning. Deterministic; not a forecast.
+- Added `examples/sample_holdings.csv` for the import quickstart.
+- All new features stay keyless, offline, and deterministic, with network-free tests.
+
 ## 0.2.0 - 2026-06-19
 
 - Added `allocate contribute --amount N`: a buy-only DCA / cash-flow plan that splits a fresh

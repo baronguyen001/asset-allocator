@@ -52,12 +52,14 @@ The HTML dashboard is a single offline file with inline CSS and SVG. It has no C
 |---|---|
 | 7 buckets | equity, bonds, gold, real estate, savings, cash, emergency reserve |
 | 4 model templates | conservative, balanced, growth, aggressive |
+| Custom targets | define your own per-bucket weights, re-normalized to 100% |
 | Glide path | optional age-based equity tilt |
 | Drift tracking | current weight vs target weight by bucket |
 | Rebalance plan | buy, sell, or hold suggestions by bucket |
 | DCA contribution plan | buy-only split of a fresh deposit toward target weights |
+| Growth projection | illustrative compound-growth forecast (nominal + real) for planning |
 | Snapshot history | record point-in-time snapshots and review period return |
-| Export | dump the current status to CSV, Markdown, or JSON |
+| CSV import / export | bulk-load holdings from a sheet; dump status to CSV/Markdown/JSON |
 | Keyless prices | Stooq CSV for market symbols, CoinGecko JSON for `crypto:<id>` |
 | Offline dashboard | self-contained HTML report with inline SVG + value-history sparkline |
 
@@ -70,7 +72,7 @@ The questionnaire scores horizon, drawdown tolerance, income stability, emergenc
 - `growth`
 - `aggressive`
 
-Those templates are illustrative defaults and are meant to be edited for your own use. Passing `--glide-path` adjusts the equity weight toward `110 - age`, capped to a conservative range around the selected template, then re-normalizes all buckets to 100%.
+Those templates are illustrative defaults and are meant to be edited for your own use. Passing `--glide-path` adjusts the equity weight toward `110 - age`, capped to a conservative range around the selected template, then re-normalizes all buckets to 100%. If none of the templates fit, `allocate set-target` lets you set your own per-bucket weights directly (they are re-normalized to 100%).
 
 ## CLI
 
@@ -80,15 +82,18 @@ allocate plan --amount 100000 --json
 allocate add --bucket equity --label "Demo Equity Fund" --kind market --ticker demo.us --quantity 10 --cost 3000
 allocate remove --label "Demo Equity Fund"
 allocate status --no-refresh --store examples/sample_portfolio.json
+allocate import --csv examples/sample_holdings.csv --replace --store examples/sample_portfolio.json
+allocate set-target --weight equity=60 --weight bonds=25 --weight gold=15 --store examples/sample_portfolio.json
 allocate contribute --amount 5000 --no-refresh --store examples/sample_portfolio.json
 allocate rebalance --json --store examples/sample_portfolio.json
 allocate snapshot --note "monthly check-in" --no-refresh --store examples/sample_portfolio.json
 allocate history --store examples/sample_portfolio.json
 allocate export --format csv --out status.csv --no-refresh --store examples/sample_portfolio.json
+allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
 allocate report --html dashboard.html --no-refresh --store examples/sample_portfolio.json
 ```
 
-`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline.
+`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `import` bulk-loads holdings from a CSV (the inverse of `export`), and `set-target` lets you define your own per-bucket weights instead of using a model template. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline. `project` is an illustrative compound-growth planner (nominal + inflation-adjusted real) — deterministic arithmetic on your assumptions, not a forecast.
 
 `python -m asset_allocator ...` works the same as `allocate ...`.
 

@@ -41,6 +41,18 @@ def target_allocation(profile: RiskProfile, *, glide_path: bool = False) -> Targ
     return TargetAllocation(profile_name=profile.name, weights=_normalise(weights))
 
 
+def custom_allocation(weights: dict[str, float]) -> TargetAllocation:
+    """Build a normalised "custom" target from user-supplied per-bucket weights.
+
+    Weights are relative (they need not sum to 100); unknown buckets are ignored and
+    omitted buckets default to 0. The result is re-normalised to 100% across all buckets.
+    """
+    cleaned = {bucket: float(weights.get(bucket, 0.0)) for bucket in ASSET_CLASSES}
+    if any(value < 0 for value in cleaned.values()):
+        raise ValueError("Target weights must be non-negative.")
+    return TargetAllocation(profile_name="custom", weights=_normalise(cleaned))
+
+
 def split_amount(target: TargetAllocation, total: float) -> dict[str, float]:
     return {bucket: round(total * weight / 100.0, 2) for bucket, weight in target.weights.items()}
 

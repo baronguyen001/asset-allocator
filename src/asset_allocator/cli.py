@@ -7,12 +7,19 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
-from asset_allocator.allocation import rebalance, split_amount, target_allocation
+from asset_allocator.allocation import (
+    custom_allocation,
+    rebalance,
+    split_amount,
+    target_allocation,
+)
 from asset_allocator.config import ASSET_CLASSES, BASE_CCY, REBALANCE_BAND
 from asset_allocator.contribute import plan_contribution
 from asset_allocator.history import load_history, period_return, record_snapshot, render_history
+from asset_allocator.holdings_io import import_into, parse_holdings_csv
 from asset_allocator.models import Holding, RiskProfile, TargetAllocation
 from asset_allocator.profile import run_questionnaire
+from asset_allocator.projection import project
 from asset_allocator.report import render_status, render_status_csv, write_dashboard_html
 from asset_allocator.store import StoreError, add_holding, load, remove_holding, save
 from asset_allocator.valuation import revalue
@@ -240,9 +247,77 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_import(args: argparse.Namespace) -> int:
+    with open(args.csv, encoding="utf-8") as handle:
+        holdings = parse_holdings_csv(handle.read())
+    data = _load_or_empty(args.store)
+    count = import_into(data, holdings, replace=args.replace)
+    save(data, args.store)
+    verb = "Replaced store with" if args.replace else "Imported"
+    print(f"{verb} {count} holding(s) into {args.store}")
+    return 0
+
+
+def _parse_weight_args(pairs: list[str]) -> dict[str, float]:
+    weights: dict[str, float] = {}
+    for pair in pairs:
+        bucket, sep, raw = pair.partition("=")
+        if not sep:
+            raise ValueError(f"--weight expects BUCKET=NN, got {pair!r}.")
+        weights[bucket.strip()] = float(raw)
+    return weights
+
+
+def cmd_set_target(args: argparse.Namespace) -> int:
+    if args.from_file:
+        payload = _read_json_file(args.from_file)
+        weights = {str(key): float(value) for key, value in payload.items()}
+    else:
+        weights = _parse_weight_args(args.weight or [])
+    if not weights:
+        raise ValueError("Provide --from-file or at least one --weight BUCKET=NN.")
+    target = custom_allocation(weights)
+    data = _load_or_empty(args.store)
+    data["target"] = asdict(target)
+    data.setdefault("holdings", [])
+    data.setdefault("price_cache", {})
+    data.setdefault("history", [])
+    save(data, args.store)
+    _print_target(target)
+    print(f"\nSaved custom target: {args.store}")
+    return 0
+
+
+def cmd_project(args: argparse.Namespace) -> int:
+    initial = args.initial
+    if initial is None:
+        try:
+            initial = _status_from_data(load(args.store), refresh=False).total_value
+        except StoreError:
+            initial = 0.0
+    rows = project(
+        initial, args.monthly, args.annual_return, args.years, inflation_pct=args.inflation
+    )
+    if args.json:
+        print(json.dumps([asdict(row) for row in rows], indent=2, sort_keys=True))
+        return 0
+    print(DISCLAIMER)
+    print(
+        f"\nProjection: start {initial:.2f} {BASE_CCY}, +{args.monthly:.2f}/mo, "
+        f"{args.annual_return:.2f}%/yr nominal, {args.inflation:.2f}% inflation"
+    )
+    print("Year   Contributed       Nominal          Real        Growth")
+    for row in rows:
+        print(
+            f"{row.year:>4} {row.contributed:>13.2f} {row.nominal:>13.2f} "
+            f"{row.real:>13.2f} {row.growth:>13.2f}"
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="allocate", description="Keyless asset allocation CLI.")
-    parser.add_argument("--version", action="version", version="asset-allocator 0.2.0")
+    parser.add_argument("--version", action="version", version="asset-allocator 0.3.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Run the risk questionnaire and write profile + target.")
@@ -329,6 +404,39 @@ def build_parser() -> argparse.ArgumentParser:
     export_refresh.add_argument("--no-refresh", dest="refresh", action="store_false")
     export.add_argument("--store", default="./portfolio.json")
     export.set_defaults(func=cmd_export)
+
+    import_p = sub.add_parser("import", help="Import holdings from a CSV file (inverse of export).")
+    import_p.add_argument("--csv", required=True, help="CSV file with holding rows.")
+    import_p.add_argument("--replace", action="store_true", help="Replace existing holdings.")
+    import_p.add_argument("--store", default="./portfolio.json")
+    import_p.set_defaults(func=cmd_import)
+
+    set_target = sub.add_parser(
+        "set-target", help="Set a custom target allocation, overriding the model template."
+    )
+    set_target.add_argument("--from-file", help="JSON object of bucket -> weight.")
+    set_target.add_argument(
+        "--weight",
+        action="append",
+        metavar="BUCKET=NN",
+        help="Repeatable, e.g. --weight equity=50.",
+    )
+    set_target.add_argument("--store", default="./portfolio.json")
+    set_target.set_defaults(func=cmd_set_target)
+
+    project_p = sub.add_parser(
+        "project", help="Project compound growth from contributions (illustrative, not advice)."
+    )
+    project_p.add_argument("--years", type=int, required=True)
+    project_p.add_argument("--monthly", type=float, default=0.0)
+    project_p.add_argument("--annual-return", type=float, default=7.0, dest="annual_return")
+    project_p.add_argument(
+        "--initial", type=float, help="Start value; defaults to the current portfolio value."
+    )
+    project_p.add_argument("--inflation", type=float, default=0.0)
+    project_p.add_argument("--json", action="store_true")
+    project_p.add_argument("--store", default="./portfolio.json")
+    project_p.set_defaults(func=cmd_project)
     return parser
 
 

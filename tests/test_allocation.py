@@ -2,9 +2,27 @@ from __future__ import annotations
 
 import pytest
 
-from asset_allocator.allocation import rebalance, split_amount, target_allocation
+from asset_allocator.allocation import (
+    custom_allocation,
+    rebalance,
+    split_amount,
+    target_allocation,
+)
 from asset_allocator.config import MODEL_TEMPLATES
 from asset_allocator.models import BucketStatus, PortfolioStatus, RiskProfile
+
+
+def test_custom_allocation_normalises_to_100() -> None:
+    target = custom_allocation({"equity": 50, "bonds": 30, "gold": 20})
+    assert target.profile_name == "custom"
+    assert sum(target.weights.values()) == pytest.approx(100.0)
+    assert target.weights["equity"] == pytest.approx(50.0)
+    assert target.weights["cash"] == 0.0
+
+
+def test_custom_allocation_rejects_negative() -> None:
+    with pytest.raises(ValueError):
+        custom_allocation({"equity": -10, "bonds": 110})
 
 
 def test_template_weights_sum_to_100() -> None:

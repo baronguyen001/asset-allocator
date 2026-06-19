@@ -68,3 +68,45 @@ def test_contribute_snapshot_history_export(tmp_path, capsys) -> None:  # type: 
     ]
     assert main(export_args) == 0
     assert "bucket,market_value" in out.read_text(encoding="utf-8")
+
+
+def test_import_set_target_project(tmp_path, capsys) -> None:  # type: ignore[no-untyped-def]
+    store = tmp_path / "portfolio.json"
+
+    assert (
+        main(
+            ["import", "--csv", "examples/sample_holdings.csv", "--replace", "--store", str(store)]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    data = json.loads(store.read_text(encoding="utf-8"))
+    assert len(data["holdings"]) == 7
+
+    assert (
+        main(["set-target", "--weight", "equity=60", "--weight", "bonds=40", "--store", str(store)])
+        == 0
+    )
+    assert "custom" in capsys.readouterr().out
+    data = json.loads(store.read_text(encoding="utf-8"))
+    assert data["target"]["profile_name"] == "custom"
+    assert len(data["holdings"]) == 7  # set-target preserves holdings
+
+    project_args = [
+        "project",
+        "--years",
+        "3",
+        "--monthly",
+        "100",
+        "--annual-return",
+        "5",
+        "--initial",
+        "1000",
+        "--json",
+        "--store",
+        str(store),
+    ]
+    assert main(project_args) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert len(rows) == 3
+    assert rows[-1]["nominal"] > rows[-1]["contributed"]
