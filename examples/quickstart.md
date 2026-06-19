@@ -17,6 +17,10 @@ allocate set-target --weight equity=60 --weight bonds=25 --weight gold=15 --stor
 # Plan a fresh deposit buy-only (no selling), toward the target weights:
 allocate contribute --amount 5000 --no-refresh --store examples/sample_portfolio.json
 
+# Track cash flow: load income & expense items, then see the monthly summary:
+allocate budget --import-csv examples/sample_budget.csv --replace --store examples/sample_portfolio.json
+allocate budget --store examples/sample_portfolio.json
+
 # Project compound growth from monthly contributions (illustrative, not a forecast):
 allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
 

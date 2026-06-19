@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2026-06-19
+
+- Added a cash-flow / budget module persisted in the store: income and expense items
+  (monthly or yearly), with `allocate income add|list|rm`, `allocate expense add|list|rm`,
+  and `allocate budget` (summary) / `allocate budget --import-csv FILE` (bulk load).
+- The summary auto-computes monthly income, monthly expense (yearly items normalized),
+  monthly surplus, savings rate, and annual figures.
+- The dashboard now renders a Cash flow panel (income/mo, expense/mo, surplus, savings
+  rate, and a liquid-runway estimate) when the store has budget items — fully localized.
+- Everything stays keyless, offline, and deterministic; budget data lives in the same JSON
+  store, so editing it and re-running `report` updates the dashboard.
+
 ## 0.4.0 - 2026-06-19
 
 - Redesigned the HTML dashboard: KPI summary cards (net worth, total P&L, total cost,

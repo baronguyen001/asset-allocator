@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from asset_allocator.i18n import bucket_label, normalize_lang, t
-from asset_allocator.models import PortfolioStatus, Snapshot
+from asset_allocator.models import BudgetSummary, PortfolioStatus, Snapshot
+
+_LIQUID_BUCKETS = ("cash", "savings", "emergency")
 
 _BUCKET_COLORS = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#64748b", "#dc2626"]
 
@@ -181,6 +183,7 @@ def write_dashboard_html(
     history: list[Snapshot] | None = None,
     lang: str = "en",
     currency: str | None = None,
+    budget: BudgetSummary | None = None,
 ) -> None:
     lang = normalize_lang(lang)
     ccy = currency or status.base_ccy
@@ -256,6 +259,27 @@ def write_dashboard_html(
             "</section>"
         )
 
+    cashflow_section = ""
+    if budget is not None and (budget.income_items or budget.expense_items):
+        liquid = sum(b.market_value for b in status.buckets if b.bucket in _LIQUID_BUCKETS)
+        runway_cell = ""
+        if budget.monthly_expense > 0:
+            months = liquid / budget.monthly_expense
+            runway_txt = f"{months:.1f}".replace(".", "," if lang == "vi" else ".")
+            runway_cell = (
+                f'<div class="cf"><div class="cf-k">{escape(t(lang, "runway"))}</div>'
+                f'<div class="cf-v {_pnl_class(months)}">{runway_txt} {escape(t(lang, "months"))}</div></div>'
+            )
+        cashflow_section = (
+            f'<section class="panel"><h2>{escape(t(lang, "cashflow"))}</h2><div class="cf-row">'
+            f'<div class="cf"><div class="cf-k">{escape(t(lang, "income_mo"))}</div><div class="cf-v">{escape(money(budget.monthly_income))}</div></div>'
+            f'<div class="cf"><div class="cf-k">{escape(t(lang, "expense_mo"))}</div><div class="cf-v">{escape(money(budget.monthly_expense))}</div></div>'
+            f'<div class="cf"><div class="cf-k">{escape(t(lang, "surplus_mo"))}</div><div class="cf-v {_pnl_class(budget.monthly_surplus)}">{escape(money(budget.monthly_surplus))}</div></div>'
+            f'<div class="cf"><div class="cf-k">{escape(t(lang, "savings_rate"))}</div><div class="cf-v {_pnl_class(budget.savings_rate)}">{pct(budget.savings_rate)}</div></div>'
+            f"{runway_cell}"
+            f'</div><p class="note">{escape(t(lang, "surplus_mo"))} × 12 = {escape(money(budget.annual_surplus))} {escape(t(lang, "per_year"))}.</p></section>'
+        )
+
     stale = ", ".join(status.stale_prices) if status.stale_prices else t(lang, "none")
     donut = _donut_svg(status, money(status.total_value), t(lang, "net_worth"))
     html = f"""<!doctype html>
@@ -302,8 +326,12 @@ tbody tr:hover {{ background: #f8fafc; }}
 .bar i {{ display: block; height: 7px; border-radius: 4px; background: var(--accent); }}
 .bar.down i {{ background: var(--down); }}
 .note {{ color: var(--muted); font-size: 13px; margin: 14px 0 0; }}
+.panel + .panel, .grid + .panel {{ margin-top: 20px; }}
+.cf-row {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }}
+.cf-k {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
+.cf-v {{ font-size: 20px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }}
 .disclaimer {{ margin-top: 22px; padding: 12px 16px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; color: #9a3412; font-size: 13px; }}
-@media (max-width: 820px) {{ .cards {{ grid-template-columns: repeat(2, 1fr); }} .grid {{ grid-template-columns: 1fr; }} }}
+@media (max-width: 820px) {{ .cards {{ grid-template-columns: repeat(2, 1fr); }} .grid {{ grid-template-columns: 1fr; }} .cf-row {{ grid-template-columns: repeat(2, 1fr); }} }}
 </style>
 </head>
 <body>
@@ -325,6 +353,7 @@ tbody tr:hover {{ background: #f8fafc; }}
 <p class="note">{escape(t(lang, "stale_prices"))}: {escape(stale)}</p>
 </div>
 </section>
+{cashflow_section}
 {history_section}
 <p class="disclaimer">{escape(t(lang, "disclaimer"))}</p>
 </main>

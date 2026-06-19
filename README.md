@@ -57,6 +57,7 @@ The HTML dashboard is a single offline file with inline CSS and SVG. It has no C
 | Drift tracking | current weight vs target weight by bucket |
 | Rebalance plan | buy, sell, or hold suggestions by bucket |
 | DCA contribution plan | buy-only split of a fresh deposit toward target weights |
+| Cash-flow / budget | track income & expense items (monthly/yearly) → surplus, savings rate, liquid runway |
 | Growth projection | illustrative compound-growth forecast (nominal + real) for planning |
 | Snapshot history | record point-in-time snapshots and review period return |
 | CSV import / export | bulk-load holdings from a sheet; dump status to CSV/Markdown/JSON |
@@ -91,12 +92,17 @@ allocate rebalance --json --store examples/sample_portfolio.json
 allocate snapshot --note "monthly check-in" --no-refresh --store examples/sample_portfolio.json
 allocate history --store examples/sample_portfolio.json
 allocate export --format csv --out status.csv --no-refresh --store examples/sample_portfolio.json
+allocate income add --label "Salary" --amount 80 --store examples/sample_portfolio.json
+allocate expense add --label "Food" --amount 8 --store examples/sample_portfolio.json
+allocate expense add --label "Insurance" --amount 60 --freq yearly --category protection --store examples/sample_portfolio.json
+allocate budget --store examples/sample_portfolio.json            # income/expense/surplus summary
+allocate budget --import-csv my_budget.csv --replace --store examples/sample_portfolio.json
 allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
 allocate report --html dashboard.html --lang en --no-refresh --store examples/sample_portfolio.json
 allocate report --html bang-dieu-khien.html --lang vi --no-refresh --store examples/sample_portfolio.json
 ```
 
-`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `import` bulk-loads holdings from a CSV (the inverse of `export`), and `set-target` lets you define your own per-bucket weights instead of using a model template. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline. `project` is an illustrative compound-growth planner (nominal + inflation-adjusted real) — deterministic arithmetic on your assumptions, not a forecast.
+`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `import` bulk-loads holdings from a CSV (the inverse of `export`), and `set-target` lets you define your own per-bucket weights instead of using a model template. `income`/`expense`/`budget` track your cash flow in the same store: each item is monthly or yearly, and `budget` normalizes everything to a monthly view (income, expense, surplus, savings rate) — when present, the dashboard shows a Cash flow panel with a liquid-runway estimate. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline. `project` is an illustrative compound-growth planner (nominal + inflation-adjusted real) — deterministic arithmetic on your assumptions, not a forecast.
 
 `python -m asset_allocator ...` works the same as `allocate ...`.
 

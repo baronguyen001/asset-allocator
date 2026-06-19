@@ -110,3 +110,40 @@ def test_import_set_target_project(tmp_path, capsys) -> None:  # type: ignore[no
     rows = json.loads(capsys.readouterr().out)
     assert len(rows) == 3
     assert rows[-1]["nominal"] > rows[-1]["contributed"]
+
+
+def test_budget_cli(tmp_path, capsys) -> None:  # type: ignore[no-untyped-def]
+    store = tmp_path / "p.json"
+    assert (
+        main(["income", "add", "--label", "Salary", "--amount", "80", "--store", str(store)]) == 0
+    )
+    assert main(["expense", "add", "--label", "Food", "--amount", "8", "--store", str(store)]) == 0
+    insurance = [
+        "expense",
+        "add",
+        "--label",
+        "Insurance",
+        "--amount",
+        "60",
+        "--freq",
+        "yearly",
+        "--category",
+        "protection",
+        "--store",
+        str(store),
+    ]
+    assert main(insurance) == 0
+    capsys.readouterr()
+
+    assert main(["budget", "--json", "--store", str(store)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["monthly_income"] == 80.0
+    assert summary["monthly_expense"] == 13.0  # 8 + 60/12
+    assert summary["monthly_surplus"] == 67.0
+
+    assert main(["expense", "list", "--store", str(store)]) == 0
+    assert "Insurance" in capsys.readouterr().out
+    assert main(["expense", "rm", "--label", "Food", "--store", str(store)]) == 0
+    capsys.readouterr()
+    data = json.loads(store.read_text(encoding="utf-8"))
+    assert len(data["cashflow"]) == 2  # Salary + Insurance remain

@@ -7,6 +7,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
+from asset_allocator import budget
 from asset_allocator.allocation import (
     custom_allocation,
     rebalance,
@@ -17,7 +18,7 @@ from asset_allocator.config import ASSET_CLASSES, BASE_CCY, REBALANCE_BAND
 from asset_allocator.contribute import plan_contribution
 from asset_allocator.history import load_history, period_return, record_snapshot, render_history
 from asset_allocator.holdings_io import import_into, parse_holdings_csv
-from asset_allocator.models import Holding, RiskProfile, TargetAllocation
+from asset_allocator.models import CashflowItem, Holding, RiskProfile, TargetAllocation
 from asset_allocator.profile import run_questionnaire
 from asset_allocator.projection import project
 from asset_allocator.report import render_status, render_status_csv, write_dashboard_html
@@ -31,7 +32,14 @@ DISCLAIMER = (
 
 
 def _empty_store() -> dict[str, Any]:
-    return {"profile": None, "target": None, "holdings": [], "price_cache": {}, "history": []}
+    return {
+        "profile": None,
+        "target": None,
+        "holdings": [],
+        "price_cache": {},
+        "history": [],
+        "cashflow": [],
+    }
 
 
 def _load_or_empty(path: str) -> dict[str, Any]:
@@ -179,8 +187,70 @@ def cmd_report(args: argparse.Namespace) -> int:
     status = _status_from_data(data, refresh=args.refresh)
     if args.refresh:
         save(data, args.store)
-    write_dashboard_html(status, args.html, history=load_history(data), lang=args.lang)
+    summary = budget.summarize(data) if budget.load_items(data) else None
+    write_dashboard_html(
+        status,
+        args.html,
+        history=load_history(data),
+        lang=args.lang,
+        budget=summary,
+    )
     print(f"Wrote dashboard: {args.html}")
+    return 0
+
+
+def cmd_cashflow_add(args: argparse.Namespace) -> int:
+    data = _load_or_empty(args.store)
+    item = CashflowItem(
+        kind=args.kind,
+        label=args.label,
+        amount=args.amount,
+        freq=args.freq,
+        category=getattr(args, "category", "") or "",
+    )
+    budget.add_item(data, item)
+    save(data, args.store)
+    print(f"Added {args.kind}: {args.label} ({args.amount:.2f}/{args.freq})")
+    return 0
+
+
+def cmd_cashflow_list(args: argparse.Namespace) -> int:
+    items = budget.load_items(load(args.store), args.kind)
+    if not items:
+        print(f"No {args.kind} items yet.")
+        return 0
+    for item in items:
+        cat = f" [{item.category}]" if item.category else ""
+        print(f"{item.label:<28} {item.amount:>10.2f}  ({item.freq}){cat}")
+    return 0
+
+
+def cmd_cashflow_rm(args: argparse.Namespace) -> int:
+    data = load(args.store)
+    removed = budget.remove_item(data, args.kind, args.label)
+    save(data, args.store)
+    print(
+        f"Removed {args.kind}: {args.label}" if removed else f"No {args.kind} found: {args.label}"
+    )
+    return 0 if removed else 1
+
+
+def cmd_budget(args: argparse.Namespace) -> int:
+    if args.import_csv:
+        data = _load_or_empty(args.store)
+        with open(args.import_csv, encoding="utf-8") as handle:
+            count = budget.import_csv(data, handle.read(), replace=args.replace)
+        save(data, args.store)
+        verb = "Replaced cash-flow with" if args.replace else "Imported"
+        print(f"{verb} {count} item(s) into {args.store}")
+        return 0
+    data = load(args.store)
+    if args.json:
+        print(json.dumps(asdict(budget.summarize(data)), indent=2, sort_keys=True))
+        return 0
+    print(DISCLAIMER)
+    print()
+    print(budget.render_budget(data))
     return 0
 
 
@@ -317,7 +387,7 @@ def cmd_project(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="allocate", description="Keyless asset allocation CLI.")
-    parser.add_argument("--version", action="version", version="asset-allocator 0.4.0")
+    parser.add_argument("--version", action="version", version="asset-allocator 0.5.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Run the risk questionnaire and write profile + target.")
@@ -438,7 +508,46 @@ def build_parser() -> argparse.ArgumentParser:
     project_p.add_argument("--json", action="store_true")
     project_p.add_argument("--store", default="./portfolio.json")
     project_p.set_defaults(func=cmd_project)
+
+    _add_cashflow_parser(sub, "income", "Manage income items.")
+    _add_cashflow_parser(sub, "expense", "Manage expense items.")
+
+    budget_p = sub.add_parser("budget", help="Show the cash-flow summary, or import a budget CSV.")
+    budget_p.add_argument("--json", action="store_true")
+    budget_p.add_argument(
+        "--import-csv",
+        dest="import_csv",
+        help="Bulk-load a CSV with columns kind,label,amount[,freq,category].",
+    )
+    budget_p.add_argument(
+        "--replace", action="store_true", help="With --import-csv, replace existing cash-flow."
+    )
+    budget_p.add_argument("--store", default="./portfolio.json")
+    budget_p.set_defaults(func=cmd_budget)
     return parser
+
+
+def _add_cashflow_parser(sub: Any, kind: str, help_text: str) -> None:
+    parser = sub.add_parser(kind, help=help_text)
+    actions = parser.add_subparsers(dest="action", required=True)
+
+    add = actions.add_parser("add", help=f"Add an {kind} item.")
+    add.add_argument("--label", required=True)
+    add.add_argument("--amount", type=float, required=True)
+    add.add_argument("--freq", choices=["monthly", "yearly"], default="monthly")
+    if kind == "expense":
+        add.add_argument("--category", default="")
+    add.add_argument("--store", default="./portfolio.json")
+    add.set_defaults(func=cmd_cashflow_add, kind=kind)
+
+    listing = actions.add_parser("list", help=f"List {kind} items.")
+    listing.add_argument("--store", default="./portfolio.json")
+    listing.set_defaults(func=cmd_cashflow_list, kind=kind)
+
+    rm = actions.add_parser("rm", help=f"Remove an {kind} item by label.")
+    rm.add_argument("--label", required=True)
+    rm.add_argument("--store", default="./portfolio.json")
+    rm.set_defaults(func=cmd_cashflow_rm, kind=kind)
 
 
 def main(argv: list[str] | None = None) -> int:

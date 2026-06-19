@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asset-allocator"
-version = "0.4.0"
-description = "Keyless CLI for personal portfolio planning: risk quiz, target allocation (templates + custom), DCA contribution planner, CSV import/export, snapshot history, growth projection, daily P&L tracker, and a localizable (English/Vietnamese) offline HTML dashboard."
+version = "0.5.0"
+description = "Keyless CLI for personal portfolio planning: risk quiz, target allocation (templates + custom), DCA contribution planner, income/expense cash-flow tracker, CSV import/export, snapshot history, growth projection, daily P&L tracker, and a localizable (English/Vietnamese) offline HTML dashboard."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

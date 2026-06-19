@@ -1,0 +1,10 @@
+kind,label,amount,freq,category
+income,Salary,80,monthly,work
+income,Room rental,10,monthly,rental
+expense,Food & groceries,8,monthly,living
+expense,School fees,5,monthly,kids
+expense,Utilities,2.5,monthly,living
+expense,Transport,0.7,monthly,living
+expense,Tet holiday,30,yearly,seasonal
+expense,Travel,5,yearly,leisure
+expense,Life insurance,60,yearly,protection

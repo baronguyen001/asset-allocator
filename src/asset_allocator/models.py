@@ -103,3 +103,25 @@ class ProjectionRow:
     nominal: float
     real: float
     growth: float
+
+
+@dataclass
+class CashflowItem:
+    kind: str  # "income" | "expense"
+    label: str
+    amount: float
+    freq: str = "monthly"  # "monthly" | "yearly"
+    category: str = ""
+
+
+@dataclass
+class BudgetSummary:
+    monthly_income: float
+    monthly_expense: float
+    monthly_surplus: float
+    savings_rate: float
+    annual_income: float
+    annual_expense: float
+    annual_surplus: float
+    income_items: int
+    expense_items: int
