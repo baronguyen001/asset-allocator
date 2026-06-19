@@ -51,3 +51,23 @@ def test_dashboard_embeds_history_sparkline(tmp_path) -> None:  # type: ignore[n
     assert "Value history" in html
     assert "<polyline" in html
     assert "https://" not in html
+
+
+def test_dashboard_has_kpi_cards_english(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    path = tmp_path / "en.html"
+    write_dashboard_html(sample_status(), str(path), lang="en")
+    html = path.read_text(encoding="utf-8")
+    assert "Net worth" in html
+    assert "Largest bucket" in html
+    assert 'class="card"' in html
+
+
+def test_dashboard_vietnamese(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    path = tmp_path / "vi.html"
+    write_dashboard_html(sample_status(), str(path), lang="vi")
+    html = path.read_text(encoding="utf-8")
+    assert 'lang="vi"' in html
+    assert "Giá trị ròng" in html  # net worth
+    assert "Cổ phiếu" in html  # localized equity bucket
+    assert "KHÔNG PHẢI LỜI KHUYÊN" in html  # vi disclaimer
+    assert "https://" not in html

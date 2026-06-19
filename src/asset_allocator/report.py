@@ -8,7 +8,28 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from asset_allocator.i18n import bucket_label, normalize_lang, t
 from asset_allocator.models import PortfolioStatus, Snapshot
+
+_BUCKET_COLORS = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#64748b", "#dc2626"]
+
+
+def format_money(value: float, currency: str = "", lang: str = "en") -> str:
+    """Format a number with locale-aware thousands grouping (vi uses '.', en uses ',')."""
+    thousands = "." if lang == "vi" else ","
+    decimal = "," if lang == "vi" else "."
+    negative = value < 0
+    magnitude = abs(value)
+    integer = int(magnitude)
+    fraction = int(round((magnitude - integer) * 100))
+    if fraction >= 100:
+        integer += 1
+        fraction -= 100
+    int_str = f"{integer:,}".replace(",", thousands)
+    out = int_str if fraction == 0 else f"{int_str}{decimal}{fraction:02d}"
+    if negative:
+        out = f"-{out}"
+    return f"{out} {currency}".strip() if currency else out
 
 
 def render_status(status: PortfolioStatus, fmt: str = "text") -> str | dict[str, Any]:
@@ -125,8 +146,7 @@ def _sparkline_svg(values: list[float]) -> str:
     )
 
 
-def _donut_svg(status: PortfolioStatus) -> str:
-    colors = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#64748b", "#dc2626"]
+def _donut_svg(status: PortfolioStatus, center_value: str, center_label: str) -> str:
     radius = 74
     circumference = 2 * 3.14159 * radius
     offset = 0.0
@@ -135,25 +155,93 @@ def _donut_svg(status: PortfolioStatus) -> str:
         dash = max(0.0, bucket.current_weight) / 100.0 * circumference
         circles.append(
             "<circle cx='100' cy='100' r='74' fill='none' "
-            f"stroke='{colors[idx % len(colors)]}' stroke-width='26' "
+            f"stroke='{_BUCKET_COLORS[idx % len(_BUCKET_COLORS)]}' stroke-width='26' "
             f"stroke-dasharray='{dash:.2f} {circumference - dash:.2f}' "
             f"stroke-dashoffset='{-offset:.2f}' transform='rotate(-90 100 100)' />"
         )
         offset += dash
     return (
-        "<svg viewBox='0 0 200 200' role='img' aria-label='Current allocation donut'>"
+        "<svg viewBox='0 0 200 200' role='img' aria-label='Allocation donut'>"
         "<circle cx='100' cy='100' r='74' fill='none' stroke='#e5e7eb' stroke-width='26'/>"
         + "".join(circles)
-        + f"<text x='100' y='96' text-anchor='middle' font-size='18'>{status.total_value:.0f}</text>"
-        + f"<text x='100' y='118' text-anchor='middle' font-size='12'>{escape(status.base_ccy)}</text>"
+        + f"<text x='100' y='95' text-anchor='middle' font-size='11' fill='#64748b'>{escape(center_label)}</text>"
+        + f"<text x='100' y='116' text-anchor='middle' font-size='17' font-weight='700' fill='#0f172a'>{escape(center_value)}</text>"
         + "</svg>"
     )
 
 
+def _pnl_class(value: float) -> str:
+    return "up" if value > 0 else "down" if value < 0 else "flat"
+
+
 def write_dashboard_html(
-    status: PortfolioStatus, path: str, *, history: list[Snapshot] | None = None
+    status: PortfolioStatus,
+    path: str,
+    *,
+    history: list[Snapshot] | None = None,
+    lang: str = "en",
+    currency: str | None = None,
 ) -> None:
+    lang = normalize_lang(lang)
+    ccy = currency or status.base_ccy
     history = history or []
+
+    def money(value: float) -> str:
+        return format_money(value, ccy, lang)
+
+    def pct(value: float) -> str:
+        text = f"{value:.2f}".replace(".", "," if lang == "vi" else ".")
+        return f"{text}%"
+
+    def signed_pct(value: float) -> str:
+        sign = "+" if value > 0 else ""
+        return f"{sign}{pct(value)}"
+
+    funded = [b for b in status.buckets if b.market_value or b.current_weight]
+    largest = max(status.buckets, key=lambda b: b.current_weight, default=None)
+    largest_text = (
+        f"{escape(bucket_label(lang, largest.bucket))} · {pct(largest.current_weight)}"
+        if largest is not None
+        else "-"
+    )
+    pnl_cls = _pnl_class(status.total_pnl)
+
+    cards = (
+        f'<div class="card"><div class="card-k">{escape(t(lang, "net_worth"))}</div>'
+        f'<div class="card-v">{escape(money(status.total_value))}</div></div>'
+        f'<div class="card"><div class="card-k">{escape(t(lang, "total_pnl"))}</div>'
+        f'<div class="card-v {pnl_cls}">{escape(money(status.total_pnl))} '
+        f'<span class="card-sub">({signed_pct(status.total_pnl_pct)})</span></div></div>'
+        f'<div class="card"><div class="card-k">{escape(t(lang, "invested"))}</div>'
+        f'<div class="card-v">{escape(money(status.total_cost))}</div></div>'
+        f'<div class="card"><div class="card-k">{escape(t(lang, "largest_bucket"))}</div>'
+        f'<div class="card-v">{largest_text}</div></div>'
+    )
+
+    legend = "\n".join(
+        '<li><span class="dot" style="background:'
+        f'{_BUCKET_COLORS[idx % len(_BUCKET_COLORS)]}"></span>'
+        f'<span class="lg-name">{escape(bucket_label(lang, bucket.bucket))}</span>'
+        f'<span class="lg-pct">{pct(bucket.current_weight)}</span>'
+        f'<span class="lg-val">{escape(money(bucket.market_value))}</span></li>'
+        for idx, bucket in enumerate(status.buckets)
+    )
+
+    rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(bucket_label(lang, bucket.bucket))}</td>"
+        f"<td>{escape(money(bucket.market_value))}</td>"
+        f"<td>{escape(money(bucket.cost_basis))}</td>"
+        f'<td class="{_pnl_class(bucket.pnl)}">{escape(money(bucket.pnl))}</td>'
+        f'<td class="{_pnl_class(bucket.pnl)}">{signed_pct(bucket.pnl_pct)}</td>'
+        f"<td>{pct(bucket.current_weight)}</td>"
+        f"<td>{pct(bucket.target_weight)}</td>"
+        f'<td class="drift"><span class="bar {_pnl_class(-abs(bucket.drift))}"><i style="width:{min(abs(bucket.drift), 40) * 2.5:.1f}%;"></i></span>'
+        f"{signed_pct(bucket.drift)}</td>"
+        "</tr>"
+        for bucket in status.buckets
+    )
+
     history_section = ""
     if len(history) >= 2:
         first, last = history[0], history[-1]
@@ -161,70 +249,84 @@ def write_dashboard_html(
         change_pct = (change / first.total_value * 100.0) if first.total_value else 0.0
         spark = _sparkline_svg([snap.total_value for snap in history])
         history_section = (
-            '<section class="history"><h2>Value history</h2>'
+            f'<section class="panel history"><h2>{escape(t(lang, "value_history"))}</h2>'
             f"{spark}"
-            f'<p class="note">{len(history)} snapshots, {escape(first.as_of[:10])} to {escape(last.as_of[:10])}: {change:+.2f} ({change_pct:+.2f}%).</p>'
+            f'<p class="note">{len(history)} {escape(t(lang, "snapshots"))}, {escape(first.as_of[:10])} → {escape(last.as_of[:10])}: '
+            f'<span class="{_pnl_class(change)}">{escape(money(change))} ({signed_pct(change_pct)})</span>.</p>'
             "</section>"
         )
-    rows = "\n".join(
-        "<tr>"
-        f"<td>{escape(bucket.bucket)}</td>"
-        f"<td>{bucket.market_value:.2f}</td>"
-        f"<td>{bucket.cost_basis:.2f}</td>"
-        f"<td>{bucket.pnl:.2f}</td>"
-        f"<td>{bucket.pnl_pct:.2f}%</td>"
-        f"<td>{bucket.current_weight:.2f}%</td>"
-        f"<td>{bucket.target_weight:.2f}%</td>"
-        f"<td><span class='bar'><i style='width:{min(abs(bucket.drift), 40) * 2.5:.1f}%;'></i></span>"
-        f"{bucket.drift:.2f}%</td>"
-        "</tr>"
-        for bucket in status.buckets
-    )
-    stale = ", ".join(status.stale_prices) if status.stale_prices else "None"
+
+    stale = ", ".join(status.stale_prices) if status.stale_prices else t(lang, "none")
+    donut = _donut_svg(status, money(status.total_value), t(lang, "net_worth"))
     html = f"""<!doctype html>
-<html lang="en">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Asset Allocator Dashboard</title>
+<title>{escape(t(lang, "title"))}</title>
 <style>
-body {{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; margin: 0; color: #111827; background: #f8fafc; }}
-main {{ max-width: 1040px; margin: 0 auto; padding: 32px 20px; }}
-header {{ display: flex; gap: 24px; align-items: center; justify-content: space-between; border-bottom: 1px solid #d1d5db; padding-bottom: 20px; }}
-h1 {{ margin: 0 0 8px; font-size: 30px; }}
-.metric {{ display: inline-block; margin-right: 18px; font-weight: 700; }}
-.grid {{ display: grid; grid-template-columns: 260px 1fr; gap: 28px; margin-top: 26px; align-items: start; }}
-table {{ width: 100%; border-collapse: collapse; background: white; border: 1px solid #d1d5db; }}
-th, td {{ padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; }}
+:root {{ --bg:#f1f5f9; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#4f46e5; --up:#16a34a; --down:#dc2626; }}
+* {{ box-sizing: border-box; }}
+body {{ font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; margin: 0; color: var(--ink); background: var(--bg); }}
+.bar-top {{ height: 5px; background: linear-gradient(90deg, #4f46e5, #06b6d4, #16a34a); }}
+main {{ max-width: 1080px; margin: 0 auto; padding: 28px 20px 48px; }}
+header {{ display: flex; gap: 16px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }}
+h1 {{ margin: 0; font-size: 26px; letter-spacing: -0.02em; }}
+.sub {{ color: var(--muted); font-size: 14px; margin-top: 4px; }}
+.meta {{ color: var(--muted); font-size: 13px; text-align: right; }}
+.cards {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 22px 0; }}
+.card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }}
+.card-k {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }}
+.card-v {{ font-size: 22px; font-weight: 700; margin-top: 6px; }}
+.card-sub {{ font-size: 14px; font-weight: 600; }}
+.panel {{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }}
+.grid {{ display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }}
+h2 {{ font-size: 16px; margin: 0 0 14px; }}
+.donut-wrap {{ display: flex; flex-direction: column; align-items: center; gap: 12px; }}
+svg {{ width: 100%; max-width: 240px; }}
+ul.legend {{ list-style: none; margin: 0; padding: 0; width: 100%; }}
+ul.legend li {{ display: grid; grid-template-columns: 14px 1fr auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }}
+.dot {{ width: 11px; height: 11px; border-radius: 3px; }}
+.lg-pct {{ color: var(--muted); font-variant-numeric: tabular-nums; }}
+.lg-val {{ font-weight: 600; font-variant-numeric: tabular-nums; }}
+table {{ width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }}
+th, td {{ padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }}
 th:first-child, td:first-child {{ text-align: left; }}
-th {{ background: #eef2ff; font-size: 13px; }}
-.bar {{ display: inline-block; width: 72px; height: 8px; margin-right: 8px; background: #e5e7eb; vertical-align: middle; }}
-.bar i {{ display: block; height: 8px; background: #2563eb; }}
-.note {{ margin-top: 18px; color: #475569; font-size: 14px; }}
-.history {{ margin-top: 28px; border-top: 1px solid #d1d5db; padding-top: 16px; }}
-.history h2 {{ font-size: 18px; margin: 0 0 10px; }}
-@media (max-width: 760px) {{ header, .grid {{ display: block; }} svg {{ max-width: 220px; }} table {{ font-size: 13px; }} }}
+th {{ color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }}
+tbody tr:hover {{ background: #f8fafc; }}
+.up {{ color: var(--up); }}
+.down {{ color: var(--down); }}
+.flat {{ color: var(--muted); }}
+.drift {{ display: flex; align-items: center; justify-content: flex-end; gap: 8px; }}
+.bar {{ display: inline-block; width: 70px; height: 7px; border-radius: 4px; background: #eef2f7; }}
+.bar i {{ display: block; height: 7px; border-radius: 4px; background: var(--accent); }}
+.bar.down i {{ background: var(--down); }}
+.note {{ color: var(--muted); font-size: 13px; margin: 14px 0 0; }}
+.disclaimer {{ margin-top: 22px; padding: 12px 16px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; color: #9a3412; font-size: 13px; }}
+@media (max-width: 820px) {{ .cards {{ grid-template-columns: repeat(2, 1fr); }} .grid {{ grid-template-columns: 1fr; }} }}
 </style>
 </head>
 <body>
+<div class="bar-top"></div>
 <main>
 <header>
-<div>
-<h1>Asset Allocator Dashboard</h1>
-<div>As of {escape(status.as_of)}. Base currency: {escape(status.base_ccy)}.</div>
-<p><span class="metric">Value {status.total_value:.2f}</span><span class="metric">P&amp;L {status.total_pnl:.2f} ({status.total_pnl_pct:.2f}%)</span></p>
-</div>
+<div><h1>{escape(t(lang, "title"))}</h1><div class="sub">{escape(t(lang, "subtitle"))}</div></div>
+<div class="meta">{escape(t(lang, "as_of"))}: {escape(status.as_of[:19])}<br>{escape(t(lang, "currency"))}: {escape(ccy)} · {len(funded)}/{len(status.buckets)} {escape(t(lang, "col_bucket"))}</div>
 </header>
+<section class="cards">{cards}</section>
 <section class="grid">
-<div>{_donut_svg(status)}</div>
+<div class="panel donut-wrap">{donut}<ul class="legend">{legend}</ul></div>
+<div class="panel">
+<h2>{escape(t(lang, "allocation"))}</h2>
 <table>
-<thead><tr><th>Bucket</th><th>Value</th><th>Cost</th><th>P&amp;L</th><th>P&amp;L %</th><th>Current</th><th>Target</th><th>Drift</th></tr></thead>
+<thead><tr><th>{escape(t(lang, "col_bucket"))}</th><th>{escape(t(lang, "col_value"))}</th><th>{escape(t(lang, "col_cost"))}</th><th>{escape(t(lang, "col_pnl"))}</th><th>{escape(t(lang, "col_pnl_pct"))}</th><th>{escape(t(lang, "col_current"))}</th><th>{escape(t(lang, "col_target"))}</th><th>{escape(t(lang, "col_drift"))}</th></tr></thead>
 <tbody>{rows}</tbody>
 </table>
+<p class="note">{escape(t(lang, "stale_prices"))}: {escape(stale)}</p>
+</div>
 </section>
 {history_section}
-<p class="note">Stale prices: {escape(stale)}</p>
-<p class="note">NOT FINANCIAL ADVICE. This dashboard displays arithmetic from user-supplied data and illustrative, user-tunable defaults.</p>
+<p class="disclaimer">{escape(t(lang, "disclaimer"))}</p>
 </main>
 </body>
 </html>

@@ -179,7 +179,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     status = _status_from_data(data, refresh=args.refresh)
     if args.refresh:
         save(data, args.store)
-    write_dashboard_html(status, args.html, history=load_history(data))
+    write_dashboard_html(status, args.html, history=load_history(data), lang=args.lang)
     print(f"Wrote dashboard: {args.html}")
     return 0
 
@@ -317,7 +317,7 @@ def cmd_project(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="allocate", description="Keyless asset allocation CLI.")
-    parser.add_argument("--version", action="version", version="asset-allocator 0.3.0")
+    parser.add_argument("--version", action="version", version="asset-allocator 0.4.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Run the risk questionnaire and write profile + target.")
@@ -366,6 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     report = sub.add_parser("report", help="Write a self-contained HTML dashboard.")
     report.add_argument("--html", required=True)
+    report.add_argument("--lang", choices=["en", "vi"], default="en", help="Dashboard language.")
     report_refresh = report.add_mutually_exclusive_group()
     report_refresh.add_argument("--refresh", dest="refresh", action="store_true", default=True)
     report_refresh.add_argument("--no-refresh", dest="refresh", action="store_false")

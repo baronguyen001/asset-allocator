@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-06-19
+
+- Redesigned the HTML dashboard: KPI summary cards (net worth, total P&L, total cost,
+  largest bucket), a donut + legend, a color-coded allocation table with drift bars, and a
+  cleaner, card-based responsive layout.
+- Added dashboard localization: `allocate report --lang en|vi` renders the whole dashboard
+  in English or Vietnamese (new `i18n` module; bucket names and UI strings translated).
+- Added locale-aware money formatting with thousands grouping (`format_money`): Vietnamese
+  uses `.`/`,` and English uses `,`/`.`.
+- The dashboard stays a single self-contained offline HTML file (no CDN, no scripts).
+
 ## 0.3.0 - 2026-06-19
 
 - Added `allocate import --csv FILE [--replace]`: load holdings in bulk from a CSV (the

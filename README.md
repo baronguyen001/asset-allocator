@@ -61,7 +61,9 @@ The HTML dashboard is a single offline file with inline CSS and SVG. It has no C
 | Snapshot history | record point-in-time snapshots and review period return |
 | CSV import / export | bulk-load holdings from a sheet; dump status to CSV/Markdown/JSON |
 | Keyless prices | Stooq CSV for market symbols, CoinGecko JSON for `crypto:<id>` |
-| Offline dashboard | self-contained HTML report with inline SVG + value-history sparkline |
+| Professional dashboard | KPI cards, donut + legend, color-coded allocation table, value-history sparkline |
+| Localized (en/vi) | render the dashboard in English or Vietnamese (`--lang en\|vi`), locale-aware number formatting |
+| Offline & self-contained | single HTML file, inline CSS/SVG, no CDN, no scripts |
 
 ## How the allocation model works
 
@@ -90,7 +92,8 @@ allocate snapshot --note "monthly check-in" --no-refresh --store examples/sample
 allocate history --store examples/sample_portfolio.json
 allocate export --format csv --out status.csv --no-refresh --store examples/sample_portfolio.json
 allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
-allocate report --html dashboard.html --no-refresh --store examples/sample_portfolio.json
+allocate report --html dashboard.html --lang en --no-refresh --store examples/sample_portfolio.json
+allocate report --html bang-dieu-khien.html --lang vi --no-refresh --store examples/sample_portfolio.json
 ```
 
 `contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `import` bulk-loads holdings from a CSV (the inverse of `export`), and `set-target` lets you define your own per-bucket weights instead of using a model template. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline. `project` is an illustrative compound-growth planner (nominal + inflation-adjusted real) — deterministic arithmetic on your assumptions, not a forecast.
