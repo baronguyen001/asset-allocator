@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asset-allocator"
-version = "0.5.0"
-description = "Keyless CLI for personal portfolio planning: risk quiz, target allocation (templates + custom), DCA contribution planner, income/expense cash-flow tracker, CSV import/export, snapshot history, growth projection, daily P&L tracker, and a localizable (English/Vietnamese) offline HTML dashboard."
+version = "0.6.0"
+description = "Keyless CLI + local web app for personal portfolio planning: risk quiz, target allocation, DCA + cash-flow tracker, 2032/2042 goal tracking, CSV import/export, snapshot history, growth projection, daily P&L, and a localizable (English/Vietnamese) offline dashboard with editable detail views and charts."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -24,7 +24,9 @@ classifiers = [
 dependencies = ["requests>=2.31"]
 
 [project.optional-dependencies]
+web = ["flask>=3.0"]
 dev = [
+  "flask>=3.0",
   "mypy>=1.10",
   "pytest>=8.2",
   "pytest-cov>=5.0",
@@ -41,6 +43,9 @@ Issues = "https://github.com/baronguyen001/asset-allocator/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+asset_allocator = ["web_assets/*.js"]
 
 [tool.ruff]
 line-length = 100

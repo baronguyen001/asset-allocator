@@ -28,9 +28,17 @@ allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
 allocate snapshot --note "monthly check-in" --no-refresh --store examples/sample_portfolio.json
 allocate history --store examples/sample_portfolio.json
 
-# Export the current status for a spreadsheet, and render the dashboard:
+# Set milestone-year net-worth goals and see progress toward them:
+allocate goal add --year 2032 --label "Financial freedom" --target 155000 --store examples/sample_portfolio.json
+allocate goal add --year 2042 --label "Real-estate empire" --target 1055000 --store examples/sample_portfolio.json
+
+# Export the current status for a spreadsheet, and render the static dashboard:
 allocate export --format csv --out status.csv --no-refresh --store examples/sample_portfolio.json
 allocate report --html dashboard.html --no-refresh --store examples/sample_portfolio.json
+
+# Or run the interactive web app (edit inline, charts, goal trajectory):
+pip install "asset-allocator[web]"
+allocate serve --lang en --store examples/sample_portfolio.json   # http://127.0.0.1:8765
 ```
 
 The output is for planning practice only. NOT FINANCIAL ADVICE.

@@ -125,3 +125,22 @@ class BudgetSummary:
     annual_surplus: float
     income_items: int
     expense_items: int
+
+
+@dataclass
+class GoalItem:
+    year: int
+    label: str
+    target: float  # target net worth, in the store's base unit
+
+
+@dataclass
+class GoalProgress:
+    year: int
+    label: str
+    target: float
+    net_worth: float
+    progress_pct: float
+    gap: float
+    years_left: int
+    required_cagr: float

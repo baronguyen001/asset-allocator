@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0 - 2026-06-19
+
+- Added a local web app: `allocate serve` (optional `[web]` extra, Flask) opens an
+  interactive dashboard at `http://127.0.0.1:8765`. It shows editable detail tables for
+  income, expenses, and holdings with emoji category icons, lets you add/delete/edit rows
+  inline, and saves straight back to the JSON store via a localhost API.
+- Added interactive charts (Chart.js, vendored locally so it works offline): expense by
+  category, income vs expense, a savings-rate gauge, and a net-worth-vs-goals trajectory.
+- Added long-horizon goal tracking: `allocate goal add|list|rm` plus a Goals progress panel
+  (current vs target net worth, gap, years left, required annual return) and a trajectory
+  chart that plots your projected net worth against milestone-year targets.
+- The currency unit is shown once in the header instead of being repeated on every number.
+- Keyless and offline: the server binds to localhost, calls no external API, and bundles
+  Chart.js; `compute_view`/`validate_store` are unit-tested without a browser.
+
 ## 0.5.0 - 2026-06-19
 
 - Added a cash-flow / budget module persisted in the store: income and expense items

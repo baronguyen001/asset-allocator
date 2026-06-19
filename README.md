@@ -58,13 +58,15 @@ The HTML dashboard is a single offline file with inline CSS and SVG. It has no C
 | Rebalance plan | buy, sell, or hold suggestions by bucket |
 | DCA contribution plan | buy-only split of a fresh deposit toward target weights |
 | Cash-flow / budget | track income & expense items (monthly/yearly) → surplus, savings rate, liquid runway |
+| Goal tracking | milestone-year net-worth targets → progress, gap, years left, required return |
 | Growth projection | illustrative compound-growth forecast (nominal + real) for planning |
 | Snapshot history | record point-in-time snapshots and review period return |
-| CSV import / export | bulk-load holdings from a sheet; dump status to CSV/Markdown/JSON |
+| CSV import / export | bulk-load holdings/budget from a sheet; dump status to CSV/Markdown/JSON |
 | Keyless prices | Stooq CSV for market symbols, CoinGecko JSON for `crypto:<id>` |
-| Professional dashboard | KPI cards, donut + legend, color-coded allocation table, value-history sparkline |
-| Localized (en/vi) | render the dashboard in English or Vietnamese (`--lang en\|vi`), locale-aware number formatting |
-| Offline & self-contained | single HTML file, inline CSS/SVG, no CDN, no scripts |
+| Static dashboard | KPI cards, donut + legend, color-coded table, cash-flow panel, value-history sparkline |
+| Local web app | `allocate serve` — editable detail tables, emoji icons, interactive charts, save-to-store |
+| Localized (en/vi) | English or Vietnamese (`--lang en\|vi`), locale-aware number formatting |
+| Offline | static report is a single HTML file; the web app bundles Chart.js and binds to localhost |
 
 ## How the allocation model works
 
@@ -98,13 +100,26 @@ allocate expense add --label "Insurance" --amount 60 --freq yearly --category pr
 allocate budget --store examples/sample_portfolio.json            # income/expense/surplus summary
 allocate budget --import-csv my_budget.csv --replace --store examples/sample_portfolio.json
 allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
+allocate goal add --year 2032 --label "Financial freedom" --target 155000 --store examples/sample_portfolio.json
 allocate report --html dashboard.html --lang en --no-refresh --store examples/sample_portfolio.json
 allocate report --html bang-dieu-khien.html --lang vi --no-refresh --store examples/sample_portfolio.json
+allocate serve --lang vi --store examples/sample_portfolio.json   # interactive editable web app
 ```
 
-`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `import` bulk-loads holdings from a CSV (the inverse of `export`), and `set-target` lets you define your own per-bucket weights instead of using a model template. `income`/`expense`/`budget` track your cash flow in the same store: each item is monthly or yearly, and `budget` normalizes everything to a monthly view (income, expense, surplus, savings rate) — when present, the dashboard shows a Cash flow panel with a liquid-runway estimate. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline. `project` is an illustrative compound-growth planner (nominal + inflation-adjusted real) — deterministic arithmetic on your assumptions, not a forecast.
+`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `import` bulk-loads holdings from a CSV (the inverse of `export`), and `set-target` lets you define your own per-bucket weights instead of using a model template. `income`/`expense`/`budget` track your cash flow in the same store: each item is monthly or yearly, and `budget` normalizes everything to a monthly view (income, expense, surplus, savings rate). `goal` records milestone-year net-worth targets (e.g. a number to hit by 2032/2042) and the dashboards show progress toward them. `snapshot` appends the current totals so `history` can show how the portfolio moved over time. `project` is an illustrative compound-growth planner (nominal + inflation-adjusted real) — deterministic arithmetic on your assumptions, not a forecast.
 
 `python -m asset_allocator ...` works the same as `allocate ...`.
+
+## Web app (`allocate serve`)
+
+For an interactive view, install the optional extra and run the local server:
+
+```bash
+pip install "asset-allocator[web]"
+allocate serve --lang vi --store portfolio.json   # opens http://127.0.0.1:8765
+```
+
+It serves a single-user, localhost-only page with editable detail tables for income, expenses, and holdings (emoji category icons), interactive charts (expense by category, income vs expense, a savings-rate gauge, and a net-worth-vs-goals trajectory), and a Goals progress panel. Edit a cell, click **Save**, and changes are written straight back to the JSON store. Chart.js is vendored locally, so the app runs fully offline and calls no external API.
 
 ## Price sources
 

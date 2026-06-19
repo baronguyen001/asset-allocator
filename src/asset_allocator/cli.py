@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
-from asset_allocator import budget
+from asset_allocator import budget, goals
 from asset_allocator.allocation import (
     custom_allocation,
     rebalance,
@@ -18,7 +18,7 @@ from asset_allocator.config import ASSET_CLASSES, BASE_CCY, REBALANCE_BAND
 from asset_allocator.contribute import plan_contribution
 from asset_allocator.history import load_history, period_return, record_snapshot, render_history
 from asset_allocator.holdings_io import import_into, parse_holdings_csv
-from asset_allocator.models import CashflowItem, Holding, RiskProfile, TargetAllocation
+from asset_allocator.models import CashflowItem, GoalItem, Holding, RiskProfile, TargetAllocation
 from asset_allocator.profile import run_questionnaire
 from asset_allocator.projection import project
 from asset_allocator.report import render_status, render_status_csv, write_dashboard_html
@@ -254,6 +254,49 @@ def cmd_budget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_goal_add(args: argparse.Namespace) -> int:
+    data = _load_or_empty(args.store)
+    goals.add_goal(data, GoalItem(year=args.year, label=args.label, target=args.target))
+    save(data, args.store)
+    print(f"Added goal: {args.year} — {args.label} (target {args.target:.2f})")
+    return 0
+
+
+def cmd_goal_list(args: argparse.Namespace) -> int:
+    items = goals.load_goals(load(args.store))
+    if not items:
+        print("No goals yet.")
+        return 0
+    for goal in items:
+        print(f"{goal.year}  {goal.label:<32} target {goal.target:.2f}")
+    return 0
+
+
+def cmd_goal_rm(args: argparse.Namespace) -> int:
+    data = load(args.store)
+    removed = goals.remove_goal(data, args.year)
+    save(data, args.store)
+    print(f"Removed goal: {args.year}" if removed else f"No goal for year {args.year}")
+    return 0 if removed else 1
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    year = args.year or datetime.now(UTC).year
+    try:
+        from asset_allocator.web import create_app
+
+        app = create_app(args.store, lang=args.lang, currency=BASE_CCY, as_of_year=year)
+    except ImportError:
+        print('Flask is required: pip install "asset-allocator[web]"', file=sys.stderr)
+        return 2
+    url = f"http://{args.host}:{args.port}/"
+    print(
+        f"Serving asset-allocator dashboard at {url} (store: {args.store}). Press Ctrl-C to stop."
+    )
+    app.run(host=args.host, port=args.port)
+    return 0
+
+
 def cmd_contribute(args: argparse.Namespace) -> int:
     data = load(args.store)
     status = _status_from_data(data, refresh=args.refresh)
@@ -387,7 +430,7 @@ def cmd_project(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="allocate", description="Keyless asset allocation CLI.")
-    parser.add_argument("--version", action="version", version="asset-allocator 0.5.0")
+    parser.add_argument("--version", action="version", version="asset-allocator 0.6.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Run the risk questionnaire and write profile + target.")
@@ -524,6 +567,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     budget_p.add_argument("--store", default="./portfolio.json")
     budget_p.set_defaults(func=cmd_budget)
+
+    goal_p = sub.add_parser("goal", help="Manage long-horizon net-worth goals.")
+    goal_actions = goal_p.add_subparsers(dest="action", required=True)
+    ga = goal_actions.add_parser("add", help="Add a goal (target net worth by a year).")
+    ga.add_argument("--year", type=int, required=True)
+    ga.add_argument("--label", required=True)
+    ga.add_argument("--target", type=float, required=True, help="Target net worth (base unit).")
+    ga.add_argument("--store", default="./portfolio.json")
+    ga.set_defaults(func=cmd_goal_add)
+    gl = goal_actions.add_parser("list", help="List goals.")
+    gl.add_argument("--store", default="./portfolio.json")
+    gl.set_defaults(func=cmd_goal_list)
+    gr = goal_actions.add_parser("rm", help="Remove a goal by year.")
+    gr.add_argument("--year", type=int, required=True)
+    gr.add_argument("--store", default="./portfolio.json")
+    gr.set_defaults(func=cmd_goal_rm)
+
+    serve = sub.add_parser("serve", help="Run the local web app (editable dashboard + charts).")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--lang", choices=["en", "vi"], default="en")
+    serve.add_argument("--year", type=int, default=0, help="As-of year for goals (default: now).")
+    serve.add_argument("--store", default="./portfolio.json")
+    serve.set_defaults(func=cmd_serve)
     return parser
 
 
