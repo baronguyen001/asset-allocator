@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from asset_allocator.models import BucketStatus, PortfolioStatus
-from asset_allocator.report import render_status, write_dashboard_html
+from asset_allocator.models import BucketStatus, PortfolioStatus, Snapshot
+from asset_allocator.report import render_status, render_status_csv, write_dashboard_html
 
 
 def sample_status() -> PortfolioStatus:
@@ -31,3 +31,23 @@ def test_write_dashboard_html_self_contained(tmp_path) -> None:  # type: ignore[
     assert "<svg" in html
     assert "https://" not in html
     assert "NOT FINANCIAL ADVICE" in html
+
+
+def test_render_status_csv_has_header_and_total() -> None:
+    csv_text = render_status_csv(sample_status())
+    assert csv_text.startswith("bucket,market_value")
+    assert "equity," in csv_text
+    assert "TOTAL," in csv_text
+
+
+def test_dashboard_embeds_history_sparkline(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    history = [
+        Snapshot("2026-06-01T00:00:00+00:00", 100.0, 90.0, 10.0, 11.0, {"equity": 100.0}),
+        Snapshot("2026-06-02T00:00:00+00:00", 120.0, 90.0, 30.0, 33.0, {"equity": 100.0}),
+    ]
+    path = tmp_path / "dashboard.html"
+    write_dashboard_html(sample_status(), str(path), history=history)
+    html = path.read_text(encoding="utf-8")
+    assert "Value history" in html
+    assert "<polyline" in html
+    assert "https://" not in html

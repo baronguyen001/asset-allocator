@@ -13,7 +13,7 @@ Turn a 2-minute risk quiz into a target asset allocation, then track daily P&L a
 
 > NOT FINANCIAL ADVICE. `asset-allocator` uses illustrative, user-tunable defaults to compute allocation math from your inputs. It does not recommend securities, does not execute trades, and does not know your full financial situation.
 
-`asset-allocator` is a keyless CLI and self-contained HTML dashboard for simple portfolio planning. It asks a small risk-appetite questionnaire, maps the answers to one of four illustrative model templates, tracks daily P&L by bucket, and flags allocation drift for rebalancing.
+`asset-allocator` is a keyless CLI and self-contained HTML dashboard for simple portfolio planning. It asks a small risk-appetite questionnaire, maps the answers to one of four illustrative model templates, plans buy-only contributions toward those targets, tracks daily P&L and snapshot history, and flags allocation drift for rebalancing.
 
 ## 30-second quickstart
 
@@ -55,8 +55,11 @@ The HTML dashboard is a single offline file with inline CSS and SVG. It has no C
 | Glide path | optional age-based equity tilt |
 | Drift tracking | current weight vs target weight by bucket |
 | Rebalance plan | buy, sell, or hold suggestions by bucket |
+| DCA contribution plan | buy-only split of a fresh deposit toward target weights |
+| Snapshot history | record point-in-time snapshots and review period return |
+| Export | dump the current status to CSV, Markdown, or JSON |
 | Keyless prices | Stooq CSV for market symbols, CoinGecko JSON for `crypto:<id>` |
-| Offline dashboard | self-contained HTML report with inline SVG |
+| Offline dashboard | self-contained HTML report with inline SVG + value-history sparkline |
 
 ## How the allocation model works
 
@@ -77,9 +80,15 @@ allocate plan --amount 100000 --json
 allocate add --bucket equity --label "Demo Equity Fund" --kind market --ticker demo.us --quantity 10 --cost 3000
 allocate remove --label "Demo Equity Fund"
 allocate status --no-refresh --store examples/sample_portfolio.json
+allocate contribute --amount 5000 --no-refresh --store examples/sample_portfolio.json
 allocate rebalance --json --store examples/sample_portfolio.json
+allocate snapshot --note "monthly check-in" --no-refresh --store examples/sample_portfolio.json
+allocate history --store examples/sample_portfolio.json
+allocate export --format csv --out status.csv --no-refresh --store examples/sample_portfolio.json
 allocate report --html dashboard.html --no-refresh --store examples/sample_portfolio.json
 ```
+
+`contribute` plans a fresh deposit buy-only: it never suggests selling, just routes new cash to the most underweight buckets first, which is the usual monthly-DCA workflow. `rebalance`, by contrast, assumes you can both buy and sell. `snapshot` appends the current totals to the store so `history` can show how the portfolio moved over time, and the HTML dashboard draws that series as an inline sparkline.
 
 `python -m asset_allocator ...` works the same as `allocate ...`.
 

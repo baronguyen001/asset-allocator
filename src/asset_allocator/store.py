@@ -30,6 +30,7 @@ def load(path: str = DEFAULT_STORE) -> dict[str, Any]:
     data.setdefault("target", None)
     data.setdefault("holdings", [])
     data.setdefault("price_cache", {})
+    data.setdefault("history", [])
     return data
 
 

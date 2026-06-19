@@ -33,3 +33,38 @@ def test_status_rebalance_report_offline(tmp_path, capsys) -> None:  # type: ign
     html = tmp_path / "dashboard.html"
     assert main(["report", "--html", str(html), "--no-refresh", "--store", str(store)]) == 0
     assert html.exists()
+
+
+def test_contribute_snapshot_history_export(tmp_path, capsys) -> None:  # type: ignore[no-untyped-def]
+    store = tmp_path / "sample_portfolio.json"
+    shutil.copyfile("examples/sample_portfolio.json", store)
+
+    assert (
+        main(["contribute", "--amount", "5000", "--json", "--no-refresh", "--store", str(store)])
+        == 0
+    )
+    items = json.loads(capsys.readouterr().out)
+    assert round(sum(item["amount"] for item in items), 2) == 5000.0
+
+    assert main(["snapshot", "--no-refresh", "--note", "first", "--store", str(store)]) == 0
+    capsys.readouterr()
+    assert main(["snapshot", "--no-refresh", "--store", str(store)]) == 0
+    capsys.readouterr()
+
+    assert main(["history", "--json", "--store", str(store)]) == 0
+    history = json.loads(capsys.readouterr().out)
+    assert len(history["history"]) == 2
+
+    out = tmp_path / "status.csv"
+    export_args = [
+        "export",
+        "--format",
+        "csv",
+        "--out",
+        str(out),
+        "--no-refresh",
+        "--store",
+        str(store),
+    ]
+    assert main(export_args) == 0
+    assert "bucket,market_value" in out.read_text(encoding="utf-8")

@@ -61,3 +61,36 @@ class RebalanceAction:
     direction: str
     amount: float
     drift: float
+
+
+@dataclass
+class ContributionItem:
+    bucket: str
+    amount: float
+    current_weight: float
+    projected_weight: float
+    target_weight: float
+
+
+@dataclass
+class Snapshot:
+    as_of: str
+    total_value: float
+    total_cost: float
+    total_pnl: float
+    total_pnl_pct: float
+    weights: dict[str, float]
+    note: str = ""
+
+
+@dataclass
+class PeriodReturn:
+    start: str
+    end: str
+    start_value: float
+    end_value: float
+    change: float
+    change_pct: float
+    last_change: float
+    last_change_pct: float
+    snapshots: int

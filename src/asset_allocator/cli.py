@@ -9,9 +9,11 @@ from typing import Any
 
 from asset_allocator.allocation import rebalance, split_amount, target_allocation
 from asset_allocator.config import ASSET_CLASSES, BASE_CCY, REBALANCE_BAND
+from asset_allocator.contribute import plan_contribution
+from asset_allocator.history import load_history, period_return, record_snapshot, render_history
 from asset_allocator.models import Holding, RiskProfile, TargetAllocation
 from asset_allocator.profile import run_questionnaire
-from asset_allocator.report import render_status, write_dashboard_html
+from asset_allocator.report import render_status, render_status_csv, write_dashboard_html
 from asset_allocator.store import StoreError, add_holding, load, remove_holding, save
 from asset_allocator.valuation import revalue
 
@@ -22,7 +24,7 @@ DISCLAIMER = (
 
 
 def _empty_store() -> dict[str, Any]:
-    return {"profile": None, "target": None, "holdings": [], "price_cache": {}}
+    return {"profile": None, "target": None, "holdings": [], "price_cache": {}, "history": []}
 
 
 def _load_or_empty(path: str) -> dict[str, Any]:
@@ -170,14 +172,77 @@ def cmd_report(args: argparse.Namespace) -> int:
     status = _status_from_data(data, refresh=args.refresh)
     if args.refresh:
         save(data, args.store)
-    write_dashboard_html(status, args.html)
+    write_dashboard_html(status, args.html, history=load_history(data))
     print(f"Wrote dashboard: {args.html}")
+    return 0
+
+
+def cmd_contribute(args: argparse.Namespace) -> int:
+    data = load(args.store)
+    status = _status_from_data(data, refresh=args.refresh)
+    if args.refresh:
+        save(data, args.store)
+    items = plan_contribution(status, args.amount)
+    if args.json:
+        print(json.dumps([asdict(item) for item in items], indent=2, sort_keys=True))
+        return 0
+    print(DISCLAIMER)
+    print(f"\nContribution plan for {args.amount:.2f} {status.base_ccy} (buy-only)")
+    print("Bucket            Buy   Current%  Projected%   Target%")
+    for item in items:
+        print(
+            f"{item.bucket:<12} {item.amount:>9.2f} {item.current_weight:>9.2f} "
+            f"{item.projected_weight:>11.2f} {item.target_weight:>9.2f}"
+        )
+    return 0
+
+
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    data = load(args.store)
+    status = _status_from_data(data, refresh=args.refresh)
+    snapshot = record_snapshot(data, status, note=args.note or "")
+    save(data, args.store)
+    print(f"Recorded snapshot as of {snapshot.as_of}: {snapshot.total_value:.2f} {status.base_ccy}")
+    return 0
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    data = load(args.store)
+    if args.json:
+        summary = period_return(data)
+        payload = {
+            "history": [asdict(snap) for snap in load_history(data)],
+            "period_return": asdict(summary) if summary is not None else None,
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    print(render_history(data))
+    return 0
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    data = load(args.store)
+    status = _status_from_data(data, refresh=args.refresh)
+    if args.refresh:
+        save(data, args.store)
+    if args.format == "csv":
+        output = render_status_csv(status)
+    elif args.format == "md":
+        output = str(render_status(status, "md"))
+    else:
+        output = json.dumps(render_status(status, "dict"), indent=2, sort_keys=True)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="") as handle:
+            handle.write(output if output.endswith("\n") else output + "\n")
+        print(f"Wrote {args.format}: {args.out}")
+    else:
+        print(output)
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="allocate", description="Keyless asset allocation CLI.")
-    parser.add_argument("--version", action="version", version="asset-allocator 0.1.0")
+    parser.add_argument("--version", action="version", version="asset-allocator 0.2.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Run the risk questionnaire and write profile + target.")
@@ -231,6 +296,39 @@ def build_parser() -> argparse.ArgumentParser:
     report_refresh.add_argument("--no-refresh", dest="refresh", action="store_false")
     report.add_argument("--store", default="./portfolio.json")
     report.set_defaults(func=cmd_report)
+
+    contribute = sub.add_parser(
+        "contribute", help="Plan a buy-only cash contribution toward target weights."
+    )
+    contribute.add_argument("--amount", type=float, required=True)
+    contribute.add_argument("--json", action="store_true")
+    contribute_refresh = contribute.add_mutually_exclusive_group()
+    contribute_refresh.add_argument("--refresh", dest="refresh", action="store_true", default=True)
+    contribute_refresh.add_argument("--no-refresh", dest="refresh", action="store_false")
+    contribute.add_argument("--store", default="./portfolio.json")
+    contribute.set_defaults(func=cmd_contribute)
+
+    snapshot = sub.add_parser("snapshot", help="Record the current status into the history log.")
+    snapshot.add_argument("--note", default="")
+    snapshot_refresh = snapshot.add_mutually_exclusive_group()
+    snapshot_refresh.add_argument("--refresh", dest="refresh", action="store_true", default=True)
+    snapshot_refresh.add_argument("--no-refresh", dest="refresh", action="store_false")
+    snapshot.add_argument("--store", default="./portfolio.json")
+    snapshot.set_defaults(func=cmd_snapshot)
+
+    history = sub.add_parser("history", help="Show recorded snapshots and period return.")
+    history.add_argument("--json", action="store_true")
+    history.add_argument("--store", default="./portfolio.json")
+    history.set_defaults(func=cmd_history)
+
+    export = sub.add_parser("export", help="Export the current status as CSV, Markdown, or JSON.")
+    export.add_argument("--format", choices=["csv", "md", "json"], default="csv")
+    export.add_argument("--out", help="Output file; prints to stdout if omitted.")
+    export_refresh = export.add_mutually_exclusive_group()
+    export_refresh.add_argument("--refresh", dest="refresh", action="store_true", default=True)
+    export_refresh.add_argument("--no-refresh", dest="refresh", action="store_false")
+    export.add_argument("--store", default="./portfolio.json")
+    export.set_defaults(func=cmd_export)
     return parser
 
 

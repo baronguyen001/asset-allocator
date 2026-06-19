@@ -1,12 +1,14 @@
 # ruff: noqa: E501
 from __future__ import annotations
 
+import csv
+import io
 from dataclasses import asdict
 from html import escape
 from pathlib import Path
 from typing import Any
 
-from asset_allocator.models import PortfolioStatus
+from asset_allocator.models import PortfolioStatus, Snapshot
 
 
 def render_status(status: PortfolioStatus, fmt: str = "text") -> str | dict[str, Any]:
@@ -62,6 +64,67 @@ def render_status(status: PortfolioStatus, fmt: str = "text") -> str | dict[str,
     return "\n".join(lines)
 
 
+def render_status_csv(status: PortfolioStatus) -> str:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "bucket",
+            "market_value",
+            "cost_basis",
+            "pnl",
+            "pnl_pct",
+            "current_weight",
+            "target_weight",
+            "drift",
+        ]
+    )
+    for bucket in status.buckets:
+        writer.writerow(
+            [
+                bucket.bucket,
+                f"{bucket.market_value:.2f}",
+                f"{bucket.cost_basis:.2f}",
+                f"{bucket.pnl:.2f}",
+                f"{bucket.pnl_pct:.4f}",
+                f"{bucket.current_weight:.4f}",
+                f"{bucket.target_weight:.4f}",
+                f"{bucket.drift:.4f}",
+            ]
+        )
+    writer.writerow(
+        [
+            "TOTAL",
+            f"{status.total_value:.2f}",
+            f"{status.total_cost:.2f}",
+            f"{status.total_pnl:.2f}",
+            f"{status.total_pnl_pct:.4f}",
+            "",
+            "",
+            "",
+        ]
+    )
+    return buffer.getvalue()
+
+
+def _sparkline_svg(values: list[float]) -> str:
+    if len(values) < 2:
+        return ""
+    low, high = min(values), max(values)
+    span = (high - low) or 1.0
+    width, height = 280.0, 60.0
+    step = width / (len(values) - 1)
+    points = " ".join(
+        f"{idx * step:.1f},{height - (value - low) / span * (height - 8) - 4:.1f}"
+        for idx, value in enumerate(values)
+    )
+    return (
+        "<svg viewBox='0 0 280 60' role='img' aria-label='Portfolio value history' style='width:100%;max-width:280px;'>"
+        f"<polyline fill='none' stroke='#2563eb' stroke-width='2' points='{points}'/>"
+        "</svg>"
+    )
+
+
 def _donut_svg(status: PortfolioStatus) -> str:
     colors = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#64748b", "#dc2626"]
     radius = 74
@@ -87,7 +150,22 @@ def _donut_svg(status: PortfolioStatus) -> str:
     )
 
 
-def write_dashboard_html(status: PortfolioStatus, path: str) -> None:
+def write_dashboard_html(
+    status: PortfolioStatus, path: str, *, history: list[Snapshot] | None = None
+) -> None:
+    history = history or []
+    history_section = ""
+    if len(history) >= 2:
+        first, last = history[0], history[-1]
+        change = last.total_value - first.total_value
+        change_pct = (change / first.total_value * 100.0) if first.total_value else 0.0
+        spark = _sparkline_svg([snap.total_value for snap in history])
+        history_section = (
+            '<section class="history"><h2>Value history</h2>'
+            f"{spark}"
+            f'<p class="note">{len(history)} snapshots, {escape(first.as_of[:10])} to {escape(last.as_of[:10])}: {change:+.2f} ({change_pct:+.2f}%).</p>'
+            "</section>"
+        )
     rows = "\n".join(
         "<tr>"
         f"<td>{escape(bucket.bucket)}</td>"
@@ -123,6 +201,8 @@ th {{ background: #eef2ff; font-size: 13px; }}
 .bar {{ display: inline-block; width: 72px; height: 8px; margin-right: 8px; background: #e5e7eb; vertical-align: middle; }}
 .bar i {{ display: block; height: 8px; background: #2563eb; }}
 .note {{ margin-top: 18px; color: #475569; font-size: 14px; }}
+.history {{ margin-top: 28px; border-top: 1px solid #d1d5db; padding-top: 16px; }}
+.history h2 {{ font-size: 18px; margin: 0 0 10px; }}
 @media (max-width: 760px) {{ header, .grid {{ display: block; }} svg {{ max-width: 220px; }} table {{ font-size: 13px; }} }}
 </style>
 </head>
@@ -142,6 +222,7 @@ th {{ background: #eef2ff; font-size: 13px; }}
 <tbody>{rows}</tbody>
 </table>
 </section>
+{history_section}
 <p class="note">Stale prices: {escape(stale)}</p>
 <p class="note">NOT FINANCIAL ADVICE. This dashboard displays arithmetic from user-supplied data and illustrative, user-tunable defaults.</p>
 </main>

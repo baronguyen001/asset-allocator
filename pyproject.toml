@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asset-allocator"
-version = "0.1.0"
-description = "Keyless CLI risk quiz, target allocation planner, daily P&L tracker, and offline HTML dashboard."
+version = "0.2.0"
+description = "Keyless CLI risk quiz, target allocation planner, DCA contribution planner, snapshot history, daily P&L tracker, and offline HTML dashboard."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
