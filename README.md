@@ -65,6 +65,7 @@ The HTML dashboard is a single offline file with inline CSS and SVG. It has no C
 | Keyless prices | Stooq CSV for market symbols, CoinGecko JSON for `crypto:<id>` |
 | Static dashboard | KPI cards, donut + legend, color-coded table, cash-flow panel, value-history sparkline |
 | Local web app | `allocate serve` — editable detail tables, emoji icons, interactive charts, save-to-store |
+| Tax lots | `allocate taxlot` — realized gain/loss + remaining cost basis from a buy/sell CSV (FIFO or average) |
 | Localized (en/vi) | English or Vietnamese (`--lang en\|vi`), locale-aware number formatting |
 | Offline | static report is a single HTML file; the web app bundles Chart.js and binds to localhost |
 
@@ -100,6 +101,7 @@ allocate expense add --label "Insurance" --amount 60 --freq yearly --category pr
 allocate budget --store examples/sample_portfolio.json            # income/expense/surplus summary
 allocate budget --import-csv my_budget.csv --replace --store examples/sample_portfolio.json
 allocate project --years 20 --monthly 500 --annual-return 7 --inflation 3
+allocate taxlot --csv transactions.csv --method fifo    # realized gains + remaining cost basis (fifo|average)
 allocate goal add --year 2032 --label "Financial freedom" --target 155000 --store examples/sample_portfolio.json
 allocate report --html dashboard.html --lang en --no-refresh --store examples/sample_portfolio.json
 allocate report --html bang-dieu-khien.html --lang vi --no-refresh --store examples/sample_portfolio.json

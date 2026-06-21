@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asset-allocator"
-version = "0.6.0"
+version = "0.7.0"
 description = "Keyless CLI + local web app for personal portfolio planning: risk quiz, target allocation, DCA + cash-flow tracker, 2032/2042 goal tracking, CSV import/export, snapshot history, growth projection, daily P&L, and a localizable (English/Vietnamese) offline dashboard with editable detail views and charts."
 readme = "README.md"
 requires-python = ">=3.11"

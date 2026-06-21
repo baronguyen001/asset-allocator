@@ -23,6 +23,7 @@ from asset_allocator.profile import run_questionnaire
 from asset_allocator.projection import project
 from asset_allocator.report import render_status, render_status_csv, write_dashboard_html
 from asset_allocator.store import StoreError, add_holding, load, remove_holding, save
+from asset_allocator.taxlot import METHODS, OversellError, Transaction, compute_taxlots
 from asset_allocator.valuation import revalue
 
 DISCLAIMER = (
@@ -428,9 +429,51 @@ def cmd_project(args: argparse.Namespace) -> int:
     return 0
 
 
+def _read_transactions(path: str) -> list[Transaction]:
+    import csv
+
+    with open(path, encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    txs: list[Transaction] = []
+    for i, row in enumerate(rows, start=2):
+        try:
+            txs.append(
+                Transaction(
+                    action=str(row.get("action", "")).strip().lower(),
+                    quantity=float(row.get("quantity", 0) or 0),
+                    price=float(row.get("price", 0) or 0),
+                    date=str(row.get("date", "") or "").strip(),
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            raise StoreError(f"row {i}: bad transaction ({exc})") from exc
+    return txs
+
+
+def cmd_taxlot(args: argparse.Namespace) -> int:
+    try:
+        txs = _read_transactions(args.csv)
+        result = compute_taxlots(txs, method=args.method)
+    except (StoreError, OversellError, ValueError, OSError) as exc:
+        print(f"taxlot error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(asdict(result), indent=2, sort_keys=True))
+        return 0
+    print(DISCLAIMER)
+    print(f"\nMethod: {result.method}  ({len(result.sales)} sale(s))")
+    print(f"Realized gain/loss : {result.realized_gain:>14.2f} {BASE_CCY}")
+    print(f"  total proceeds   : {result.total_proceeds:>14.2f}")
+    print(f"  cost of sold     : {result.total_cost_sold:>14.2f}")
+    print(f"Remaining quantity : {result.remaining_quantity:>14.8g}")
+    print(f"Remaining basis    : {result.remaining_cost_basis:>14.2f}")
+    print(f"  avg cost/unit    : {result.remaining_avg_cost:>14.4f}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="allocate", description="Keyless asset allocation CLI.")
-    parser.add_argument("--version", action="version", version="asset-allocator 0.6.0")
+    parser.add_argument("--version", action="version", version="asset-allocator 0.7.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Run the risk questionnaire and write profile + target.")
@@ -551,6 +594,14 @@ def build_parser() -> argparse.ArgumentParser:
     project_p.add_argument("--json", action="store_true")
     project_p.add_argument("--store", default="./portfolio.json")
     project_p.set_defaults(func=cmd_project)
+
+    taxlot_p = sub.add_parser(
+        "taxlot", help="Realized gains and remaining cost basis from a buy/sell CSV (illustrative)."
+    )
+    taxlot_p.add_argument("--csv", required=True, help="CSV with action,quantity,price[,date].")
+    taxlot_p.add_argument("--method", choices=list(METHODS), default="fifo")
+    taxlot_p.add_argument("--json", action="store_true")
+    taxlot_p.set_defaults(func=cmd_taxlot)
 
     _add_cashflow_parser(sub, "income", "Manage income items.")
     _add_cashflow_parser(sub, "expense", "Manage expense items.")

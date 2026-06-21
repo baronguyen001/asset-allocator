@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 - 2026-06-21
+
+- Added `allocate taxlot --csv tx.csv [--method fifo|average] [--json]`: compute
+  realized gain/loss and the remaining cost basis from a chronological buy/sell
+  CSV (`action,quantity,price[,date]`). FIFO matches sells against the oldest lots;
+  `average` uses a running average cost. Pure, deterministic, offline. New
+  `asset_allocator.taxlot` module (`compute_taxlots`, `Transaction`, `TaxLotResult`).
+  Illustrative only — not tax advice (no wash-sale or locale rules).
+
 ## 0.6.0 - 2026-06-19
 
 - Added a local web app: `allocate serve` (optional `[web]` extra, Flask) opens an
